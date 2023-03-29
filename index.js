@@ -1,8 +1,7 @@
 /** @format */
 
 import { MongoClient } from "mongodb";
-import fs from "fs";
-import csvToJson from "convert-csv-to-json";
+import { updated_incubators } from "./updated_inc.js";
 import { jsonArr } from "./data.js";
 const client = new MongoClient(
   "mongodb+srv://carbonteq:xNS0cOZGX5mh217Y@cluster0.yjgwlv9.mongodb.net/cfar?retryWrites=true&w=majority"
@@ -11,13 +10,13 @@ async function run() {
   try {
     const database = client.db("cfar");
     const incubator = database.collection("incubator");
-    // const results = await incubator.updateMany(
+    // const resultsw = await incubator.updateMany(
     //   {},
     //   {
     //     $set: {
     //       g_name: null,
     //       g_type: null,
-    //       g_industry: null,
+    //       g_industry: [],
     //       g_founded: null,
     //       g_founders: [],
     //       g_headquartersLocation: [],
@@ -33,53 +32,45 @@ async function run() {
     //     },
     //   }
     // );
-    // console.log(results);
-    let fileInputName = "data.csv";
-    let fileOutputName = "data.json";
-    const incubators = [];
-    jsonArr.forEach((j) => {
-      const separated = j.split("@");
-      const keys = separated[0].split(",");
-      const values = separated[1].split(",");
-      const inc = {};
-      for (let i in keys) {
-        if (values[i] === "N/A") {
-          inc[keys[i]] = null;
-        } else if (values[i].includes("=")) {
-          inc[keys[i]] = values[i]
-            .replaceAll('"', "")
-            .split("=")
-            .map((i) => i.trim());
-        } else {
-          inc[keys[i]] = values[i].trim();
+    // console.log(resultsw);
+    updated_incubators.forEach((inc, index) => {
+      for (let i in inc) {
+        if (inc[i] === "N/A" || inc[i] === "-" || inc[i] === 0) {
+          inc[i] = null;
         }
       }
-      incubators.push(inc);
+      inc["g_name"] = inc.name;
+      inc["g_acceleratorProgramFocusAreas"] =
+        inc["accelerator program focus areas"]?.split(",") ?? [];
+      inc["g_facebook"] = inc.facebook;
+      inc["g_founded"] = inc.founded?.toString() ?? null;
+      inc["g_founders"] = inc.founders?.split(",") ?? [];
+      inc["g_headquartersLocation"] =
+        inc["headquarters location"]?.split(",") ?? [];
+      inc["g_industry"] = inc.industry?.split(",") ?? [];
+      inc["g_instagram"] = inc.instagram;
+      inc["g_linkedIn"] = inc.linkedIn;
+      inc["g_notableAlumniCompanies"] =
+        inc["notable alumni companies"]?.split(",") ?? [];
+      inc["g_pitchBookUrl"] = inc["pitchbook url"];
+      inc["g_structuredDataUrl"] = inc["structured data url"];
+      inc["g_twitter"] = inc.twitter;
+      inc["g_type"] = inc.type;
+      inc["g_youTube"] = inc.youTube;
+      for (let i in inc) {
+        if (!i.includes("g_")) {
+          delete inc[i];
+        }
+        if (Array.isArray(inc[i])) {
+          inc[i] = inc[i].map((j) => j.trim());
+        } else if (typeof inc[i] === "string") {
+          inc[i] = inc[i].trim();
+        }
+      }
     });
-    incubators.forEach((inc) => {
-      if (typeof inc.g_industry === "string") {
-        inc.g_industry = [inc.g_industry];
-      }
-      if (typeof inc.g_founders === "string") {
-        inc.g_founders = [inc.g_founders];
-      }
-      if (typeof inc.g_acceleratorProgramFocusAreas === "string") {
-        inc.g_acceleratorProgramFocusAreas = [
-          inc.g_acceleratorProgramFocusAreas,
-        ];
-      }
-      if (typeof inc.g_notableAlumniCompanies === "string") {
-        inc.g_notableAlumniCompanies = [inc.g_notableAlumniCompanies];
-      }
-      if (inc.g_acceleratorProgramFocusAreas === null) {
-        inc.g_acceleratorProgramFocusAreas = [];
-      }
-      if (inc.g_notableAlumniCompanies === null) {
-        inc.g_notableAlumniCompanies = [];
-      }
-    });
+
     const updateQueries = [];
-    for (let incubator of incubators) {
+    for (let incubator of updated_incubators) {
       const copy = { ...incubator };
       const updateQuery = {
         updateOne: {
@@ -88,7 +79,6 @@ async function run() {
         },
       };
       updateQuery.updateOne.filter["title"] = copy.g_name;
-      delete copy.title;
       updateQuery.updateOne.update.$set = { ...copy };
       updateQueries.push(updateQuery);
     }
